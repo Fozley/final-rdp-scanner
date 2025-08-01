@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-// Next IP increment
 func nextIP(ip net.IP) net.IP {
 	newIP := make(net.IP, len(ip))
 	copy(newIP, ip)
@@ -24,7 +23,6 @@ func nextIP(ip net.IP) net.IP {
 	return newIP
 }
 
-// RDP detection
 func isRDP(ip string, port int, timeout time.Duration) bool {
 	address := fmt.Sprintf("%s:%d", ip, port)
 	conn, err := net.DialTimeout("tcp", address, timeout)
@@ -46,7 +44,6 @@ func isRDP(ip string, port int, timeout time.Duration) bool {
 	return err == nil
 }
 
-// Scan worker
 func scan(ip string, port int, timeout time.Duration, wg *sync.WaitGroup, openChan chan<- string) {
 	defer wg.Done()
 	if isRDP(ip, port, timeout) {
@@ -54,15 +51,18 @@ func scan(ip string, port int, timeout time.Duration, wg *sync.WaitGroup, openCh
 	}
 }
 
-// Keep-alive HTTP server
 func keepAlive(currentIP *string, mu *sync.Mutex) {
 	go func() {
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8080"
+		}
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			mu.Lock()
 			defer mu.Unlock()
-			fmt.Fprintf(w, "")
+			fmt.Fprintf(w, "Currently scanning: %s\n", *currentIP)
 		})
-		http.ListenAndServe(":8080", nil)
+		http.ListenAndServe(":"+port, nil)
 	}()
 }
 
@@ -74,7 +74,7 @@ func main() {
 	ports := []int{3389}
 	threads := 50000
 
-	keepAlive(&currentIP, &mu) // Start keep-alive web server
+	keepAlive(&currentIP, &mu)
 
 	startIP := net.ParseIP(startIPStr)
 	if startIP == nil {
@@ -94,7 +94,6 @@ func main() {
 	openResults := make(chan string, threads)
 	var wg sync.WaitGroup
 
-	// Worker goroutines
 	for w := 0; w < threads; w++ {
 		go func() {
 			for job := range jobs {
@@ -103,7 +102,6 @@ func main() {
 		}()
 	}
 
-	// Writer goroutine
 	go func() {
 		for result := range openResults {
 			fmt.Println(result)
@@ -112,7 +110,6 @@ func main() {
 		}
 	}()
 
-	// Keypress to show current IP
 	go func() {
 		reader := bufio.NewReader(os.Stdin)
 		for {
@@ -125,7 +122,6 @@ func main() {
 		}
 	}()
 
-	// Infinite IP scanner
 	for ip := startIP; ; ip = nextIP(ip) {
 		ipStr := ip.String()
 
