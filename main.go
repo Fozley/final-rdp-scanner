@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,36 +22,6 @@ func nextIP(ip net.IP) net.IP {
 		}
 	}
 	return newIP
-}
-
-// Port . parser (e.g. 3389,80,21-23)
-func parsePorts(portInput string) ([]int, error) {
-	var ports []int
-	parts := strings.Split(portInput, ",")
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if strings.Contains(part, "-") {
-			rangeParts := strings.Split(part, "-")
-			if len(rangeParts) != 2 {
-				return nil, fmt.Errorf("invalid port range: %s", part)
-			}
-			start, err1 := strconv.Atoi(rangeParts[0])
-			end, err2 := strconv.Atoi(rangeParts[1])
-			if err1 != nil || err2 != nil || start > end {
-				return nil, fmt.Errorf("invalid range: %s", part)
-			}
-			for i := start; i <= end; i++ {
-				ports = append(ports, i)
-			}
-		} else {
-			port, err := strconv.Atoi(part)
-			if err != nil {
-				return nil, fmt.Errorf("invalid port: %s", part)
-			}
-			ports = append(ports, port)
-		}
-	}
-	return ports, nil
 }
 
 // RDP detection
@@ -85,7 +54,7 @@ func scan(ip string, port int, timeout time.Duration, wg *sync.WaitGroup, openCh
 	}
 }
 
-// 🔁 Keep-alive HTTP server
+// Keep-alive HTTP server
 func keepAlive(currentIP *string, mu *sync.Mutex) {
 	go func() {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -98,31 +67,18 @@ func keepAlive(currentIP *string, mu *sync.Mutex) {
 }
 
 func main() {
-	var startIPStr, portInput string
-	var threads int
 	var currentIP string
 	var mu sync.Mutex
 
-	keepAlive(&currentIP, &mu) // 🟢 Start keep-alive web server
+	startIPStr := "100.0.0.0"
+	ports := []int{3389}
+	threads := 50000
 
-	fmt.Print("Start IP: ")
-	fmt.Scanln(&startIPStr)
-
-	fmt.Print("Ports (e.g. 3389,80,21-23): ")
-	fmt.Scanln(&portInput)
-
-	fmt.Print("Threads: ")
-	fmt.Scanln(&threads)
+	keepAlive(&currentIP, &mu) // Start keep-alive web server
 
 	startIP := net.ParseIP(startIPStr)
 	if startIP == nil {
 		fmt.Println("Invalid Start IP.")
-		return
-	}
-
-	ports, err := parsePorts(portInput)
-	if err != nil {
-		fmt.Println("Port parse error:", err)
 		return
 	}
 
